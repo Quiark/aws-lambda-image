@@ -21,7 +21,8 @@
     "test-lambda": "claudia test-lambda --profile $npm_package_config_profile --event $npm_config_event_file",
     "pretest": "npm run lint",
     "lint": "eslint .",
-    "destroy": "AWS_PROFILE=$npm_package_config_profile claudia destroy --profile $npm_package_config_profile"
+    "destroy": "AWS_PROFILE=$npm_package_config_profile claudia destroy --profile $npm_package_config_profile",
+    "postpack": "tarball=$(npm list - depth 0 | sed 's/@/-/g; s/ .*/.tgz/g; 1q;'); tar -tf $tarball | sed 's/^package\\///' | zip -@r package; rm $tarball"
   },
   "keywords": [
     "aws",
@@ -47,6 +48,12 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "aws-sdk": "^2.24.0",
+    "gm": "^1.23.0",
+    "image-type": "^3.0.0",
+    "path-template": "0.0.0"
+  },
+  "bundleDependencies": {
     "aws-sdk": "^2.24.0",
     "gm": "^1.23.0",
     "image-type": "^3.0.0",
