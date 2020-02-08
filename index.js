@@ -13,6 +13,7 @@ const eventParser    = require("./lib/EventParser");
 const Config         = require("./lib/Config");
 const fs             = require("fs");
 const path           = require("path");
+const aws            = require("aws-sdk");
 
 // Lambda Handler
 exports.handler = (event, context, callback) => {
@@ -35,6 +36,11 @@ function process(s3Object, callback) {
         JSON.parse(fs.readFileSync(configPath, { encoding: "utf8" }))
     );
 
+    if (s3Object.object.key.toLowerCase().endsWith('.mp4')) {
+        processVideo(fileSystem, config, s3Object, callback);
+        return;
+    }
+
     processor.run(config)
     .then((processedImages) => {
         const message = "OK, " + processedImages + " images were processed.";
@@ -56,4 +62,39 @@ function process(s3Object, callback) {
             return;
         }
     });
+}
+
+// TODO: can have multiple items?
+function processVideo(fileSystem, config, s3Object, callback) {
+    let client = fileSystem.client;
+    let uuid = crypto.randomBytes(16).toString('hex');
+    let dir = config.backup.directory;
+    let video = {
+        CopySource: '/' + s3Object.bucket.name + '/' + s3Object.object.key,
+        Bucket: config.get('bucket'),
+        Key: dir + uuid + '.mp4',
+    };
+    
+    // I don't know how to use promises
+
+    // TODO error handling
+    client.copyObject(video, (err, res) => { 
+        if (err == null) {
+            client.deleteObject({
+                Bucket: s3Object.bucket.name,
+                Key: s3Object.object.key
+            }, (err, res) => { if (err) console.log(err) })
+        }
+
+        callback(err, 'done ish') 
+    });
+    
+
+    let cfgres = config.resizes[0];
+    let preview = {
+        Bucket: video.Bucket,
+        Key: dir + cfgres.prefix + uuid + '.' + cfgres.format,
+        Body: 'todo ffmpeg'
+    };
+    client.putObject(preview, (err, res) => { if (err) console.log(err) });
 }
