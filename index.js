@@ -14,6 +14,7 @@ const Config         = require("./lib/Config");
 const fs             = require("fs");
 const path           = require("path");
 const aws            = require("aws-sdk");
+const crypto         = require("crypto");
 
 // Lambda Handler
 exports.handler = (event, context, callback) => {
@@ -36,8 +37,9 @@ function process(s3Object, callback) {
         JSON.parse(fs.readFileSync(configPath, { encoding: "utf8" }))
     );
 
-    if (s3Object.object.key.toLowerCase().endsWith('.mp4')) {
-        processVideo(fileSystem, config, s3Object, callback);
+    const name = s3Object.object.key.toLowerCase();
+    if (name.endsWith('.mp4') || name.endsWith('.mov')) {
+        processVideo(fileSystem, config.stack, s3Object, callback);
         return;
     }
 
@@ -69,17 +71,20 @@ function processVideo(fileSystem, config, s3Object, callback) {
     let client = fileSystem.client;
     let uuid = crypto.randomBytes(16).toString('hex');
     let dir = config.backup.directory;
+    let srcext = s3Object.object.key.split('.').pop();
     let video = {
         CopySource: '/' + s3Object.bucket.name + '/' + s3Object.object.key,
-        Bucket: config.get('bucket'),
-        Key: dir + uuid + '.mp4',
+        Bucket: config.bucket,
+        Key: dir + uuid + '.' + srcext,
     };
+    console.log('Processing video', video);
     
     // I don't know how to use promises
 
     // TODO error handling
     client.copyObject(video, (err, res) => { 
         if (err == null) {
+            console.log('Copied video to target');
             client.deleteObject({
                 Bucket: s3Object.bucket.name,
                 Key: s3Object.object.key
