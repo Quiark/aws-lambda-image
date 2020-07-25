@@ -60,6 +60,7 @@ function process(s3Object, callback) {
             callback( null, "Image file is broken or it's a folder" );
             return;
         } else {
+            console.log('err', messages, messages.stack)
             callback("Error processing " + s3Object.object.key + ": " + messages);
             return;
         }
@@ -68,6 +69,9 @@ function process(s3Object, callback) {
 
 // TODO: can have multiple items?
 function processVideo(fileSystem, config, s3Object, callback) {
+    let mediaconv = new aws.MediaConvert();
+    mediaconv.endpoint = 'https://qzovegirb.mediaconvert.ap-northeast-2.amazonaws.com';
+
     let client = fileSystem.client;
     let uuid = crypto.randomBytes(16).toString('hex');
     let dir = config.backup.directory;
@@ -77,6 +81,7 @@ function processVideo(fileSystem, config, s3Object, callback) {
         Bucket: config.bucket,
         Key: dir + uuid + '.' + srcext,
     };
+
     console.log('Processing video', video);
     
     // I don't know how to use promises
@@ -89,6 +94,18 @@ function processVideo(fileSystem, config, s3Object, callback) {
                 Bucket: s3Object.bucket.name,
                 Key: s3Object.object.key
             }, (err, res) => { if (err) console.log(err) })
+
+            // - process the video
+            mediaconv.createJob({
+                JobTemplate: 'life-previews', 
+                Role: 'arn:aws:iam::500390570874:role/life-mediaconvert',
+                Settings: {
+                    Inputs: [{FileInput: 's3://' + video.Bucket + '/' + video.Key}],
+                    OutputGroups: [{
+                        OutputGroupSettings: {FileGroupSettings: {
+                            Destination: "s3://life.rplasil.name/" + dir + 'p500-' + uuid}}}]
+                }
+            }, (err, res) => console.log('mediaconvert create job', err));
         }
 
         callback(err, 'done ish') 
@@ -96,10 +113,4 @@ function processVideo(fileSystem, config, s3Object, callback) {
     
 
     let cfgres = config.resizes[0];
-    let preview = {
-        Bucket: video.Bucket,
-        Key: dir + cfgres.prefix + uuid + '.' + cfgres.format,
-        Body: 'todo ffmpeg'
-    };
-    client.putObject(preview, (err, res) => { if (err) console.log(err) });
 }
